@@ -92,7 +92,7 @@ def webhook():
                 fresh.append(v)
 
         if not fresh:
-            reply(access_token, ev["replyToken"], [{"type": "text", "text": "ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน 35 วันแล้ว"}])
+            reply(access_token, ev["replyToken"], [{"type": "text", "text": "ไม่พบข้อมูลทะเบียนที่ค้นหา"}])
             continue
 
         # >>> เปลี่ยนตรงนี้: ส่งเฉพาะ Flex Message ไม่มีข้อความสรุปนำหน้า <<<
