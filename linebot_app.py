@@ -95,22 +95,13 @@ def webhook():
             reply(access_token, ev["replyToken"], [{"type": "text", "text": "ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน 35 วันแล้ว"}])
             continue
 
-        # สร้างข้อความสรุป (พ.ศ. + นับวัน) สำหรับผลลัพธ์แรก
-        first = fresh[0]
-        rd = first.recorded_date
-        rd_text = f"{rd.day:02d}/{rd.month:02d}/{rd.year + 543}"
-        diff_days = (today - rd).days
-        summary = (
-            f"บันทึกข้อมูลทะเบียนรถ {first.license_plate} วันที่ {rd_text}\n"
-            f"ผู้ใช้ เรียกดูข้อมูลทะเบียนรถ {text}\n"
-            f"(ผ่านการบันทึกข้อมูลมาแล้ว {diff_days} วัน)"
-        )
-
+        # >>> เปลี่ยนตรงนี้: ส่งเฉพาะ Flex Message ไม่มีข้อความสรุปนำหน้า <<<
         flex = to_flex_message(fresh[:10])
-        reply(access_token, ev["replyToken"], [
-            {"type": "text", "text": summary},
-            {"type": "flex", "altText": f"ผลการค้นหา {len(fresh[:10])} รายการ", "contents": flex},
-        ])
+        reply(access_token, ev["replyToken"], [{
+            "type": "flex",
+            "altText": f"ผลการค้นหา {len(fresh[:10])} รายการ",
+            "contents": flex
+        }])
 
     return "ok"
 
