@@ -1,0 +1,40 @@
+
+version: '3.8'
+services:
+  db:
+    image: mysql:8.0
+    container_name: fleet-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: fleet
+      MYSQL_USER: app
+      MYSQL_PASSWORD: apppass
+    ports:
+      - "3306:3306"
+    volumes:
+      - fleet_mysql_data:/var/lib/mysql
+
+  web:
+    build: .
+    container_name: fleet-web
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      # ใช้ MySQL ภายใน docker compose (persistent ผ่าน named volume)
+      DATABASE_URL: mysql+pymysql://app:apppass@db:3306/fleet?charset=utf8mb4
+      SECRET_KEY: please_change_me
+      LINE_CHANNEL_SECRET: replace_with_channel_secret
+      LINE_CHANNEL_ACCESS_TOKEN: replace_with_channel_access_token
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+    ports:
+      - "8000:8000"
+    command: ["gunicorn","wsgi:app","-b","0.0.0.0:8000","--workers","2","--threads","4"]
+    volumes:
+      - ./:/app
+
+volumes:
+  fleet_mysql_data:
+    driver: local

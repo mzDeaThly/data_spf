@@ -1,0 +1,24 @@
+:root { --primary:#0ea5e9; --bg:#0b1220; --card:#0f172a; --text:#e2e8f0; --muted:#94a3b8; }
+* { box-sizing: border-box; } body { background:#0b1220; color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin:0; }
+a { color: var(--primary); text-decoration: none; }
+.container { max-width: 1040px; margin: 0 auto; padding: 16px; }
+.nav { background:#0f172a; border-bottom:1px solid #1e293b; }
+.nav .brand { font-weight:700; color:#fff; }
+.nav .menu a { margin-right: 12px; }
+h1 { margin: 12px 0 16px; }
+.grid { display:grid; grid-template-columns: repeat(4,1fr); gap:12px; }
+.card { background:var(--card); padding:16px; border-radius:12px; border:1px solid #1f2937; }
+.form-card { background:var(--card); padding:16px; border-radius:12px; border:1px solid #1f2937; max-width:520px; }
+.form-card label { display:block; margin-bottom:12px; font-size:14px; color:var(--muted); }
+.form-card input[type=text], .form-card input[type=password], .form-card input[type=file] { width:100%; padding:10px; border-radius:8px; background:#0b1220; color:#e2e8f0; border:1px solid #1f2937; }
+.form-card button, .btn, button { background:var(--primary); color:#001220; padding:10px 16px; border:0; border-radius:10px; cursor:pointer; font-weight:700; }
+.form-card .checkbox { display:flex; gap:8px; align-items:center; }
+.actions { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.inline { display:inline-block; }
+table { width:100%; border-collapse: collapse; background:var(--card); border-radius:12px; overflow:hidden; }
+th, td { padding:10px; border-bottom:1px solid #1f2937; text-align:left; }
+.alert { padding:10px; border-radius:10px; margin: 12px 0; }
+.alert.success { background:#052e1a; color:#8bffa6; border:1px solid #0b6b34; }
+.alert.info    { background:#062539; color:#86d9ff; border:1px solid #0a4e78; }
+.alert.warning { background:#3d2b13; color:#ffd09b; border:1px solid #8a5d1a; }
+.alert.danger  { background:#3b0f18; color:#ff9bb5; border:1px solid #7a1e31; }

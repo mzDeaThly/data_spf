@@ -1,0 +1,44 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h1>กลุ่ม LINE</h1>
+<form method="post" action="{{ url_for('dashboard.line_groups_add') }}" class="form-card">
+  <label>LINE GroupID
+    <input type="text" name="line_group_id" required>
+  </label>
+  <label>ชื่อที่ตั้งค่า (ออปชัน)
+    <input type="text" name="display_name" placeholder="เช่น กลุ่มคลังสินค้า">
+  </label>
+  <label class="checkbox">
+    <input type="checkbox" name="is_active" checked> อนุญาตการใช้งาน
+  </label>
+  <button type="submit">เพิ่ม</button>
+</form>
+
+<table>
+  <thead><tr><th>ID</th><th>GroupID</th><th>ชื่อที่ตั้งค่า</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
+  <tbody>
+  {% for g in groups %}
+    <tr>
+      <td>{{ g.id }}</td>
+      <td style="word-break: break-all;">{{ g.line_group_id }}</td>
+      <td>
+        <form method="post" action="{{ url_for('dashboard.line_groups_update', gid=g.id) }}" class="inline">
+          <input type="text" name="display_name" value="{{ g.display_name or '' }}" placeholder="ตั้งชื่อ...">
+          <button type="submit">บันทึกชื่อ</button>
+        </form>
+      </td>
+      <td>{{ 'Active' if g.is_active else 'Inactive' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('dashboard.line_groups_toggle', gid=g.id) }}" class="inline">
+          <button type="submit">Toggle</button>
+        </form>
+        <form method="post" action="{{ url_for('dashboard.line_groups_delete', gid=g.id) }}" class="inline" onsubmit="return confirm('ยืนยันการลบ?')">
+          <button type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

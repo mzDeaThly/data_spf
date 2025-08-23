@@ -1,0 +1,11 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h1>แดชบอร์ด</h1>
+<div class="grid">
+  <div class="card">จำนวนรถทั้งหมด: <strong>{{ counts.vehicles }}</strong></div>
+  <div class="card">ผู้ใช้ LINE: <strong>{{ counts.line_users }}</strong></div>
+  <div class="card">กลุ่ม LINE: <strong>{{ counts.line_groups }}</strong></div>
+  <div class="card">ผู้ดูแลระบบ: <strong>{{ counts.admins }}</strong></div>
+</div>
+{% endblock %}

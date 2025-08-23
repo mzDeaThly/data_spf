@@ -1,0 +1,52 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h1>ทะเบียนรถ</h1>
+<div class="actions">
+  <form method="get" class="inline">
+    <input type="text" name="q" placeholder="ค้นหาทะเบียน..." value="{{ q }}">
+    <button type="submit">ค้นหา</button>
+  </form>
+  <div>
+    <a class="btn" href="{{ url_for('dashboard.vehicles_add') }}">+ เพิ่มข้อมูล</a>
+    <a class="btn" href="{{ url_for('dashboard.vehicles_upload') }}">อัปโหลด CSV</a>
+  </div>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>ทะเบียน</th>
+      <th>ยี่ห้อ</th>
+      <th>รุ่น</th>
+      <th>ผู้ใช้งาน</th>
+      <th>ติดต่อ</th>
+      <th>สีรถ</th>
+      <th>เลขตัวถัง</th>
+      <th>วันที่บันทึก</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for v in vehicles %}
+    <tr>
+      <td>{{ v.id }}</td>
+      <td>{{ v.license_plate }}</td>
+      <td>{{ v.brand or '-' }}</td>
+      <td>{{ v.model or '-' }}</td>
+      <td>{{ v.owner_name or '-' }}</td>
+      <td>{{ v.contact_info or '-' }}</td>
+      <td>{{ v.color or '-' }}</td>
+      <td>{{ v.vin or '-' }}</td>
+      <td>{{ v.recorded_date or '-' }}</td>
+      <td>
+        <a href="{{ url_for('dashboard.vehicles_edit', vid=v.id) }}">แก้ไข</a>
+        <form method="post" action="{{ url_for('dashboard.vehicles_delete', vid=v.id) }}" class="inline" onsubmit="return confirm('ยืนยันการลบ?')">
+          <button type="submit">ลบ</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

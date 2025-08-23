@@ -1,0 +1,32 @@
+
+{% extends 'base.html' %}
+{% block content %}
+<h1>{{ 'แก้ไขข้อมูล' if v else 'เพิ่มข้อมูลใหม่' }}</h1>
+<form method="post" class="form-card">
+  <label>ทะเบียนรถ
+    <input type="text" name="license_plate" value="{{ v.license_plate if v else '' }}" required>
+  </label>
+  <label>ยี่ห้อ
+    <input type="text" name="brand" value="{{ v.brand if v else '' }}">
+  </label>
+  <label>รุ่น
+    <input type="text" name="model" value="{{ v.model if v else '' }}">
+  </label>
+  <label>ชื่อผู้ใช้งาน/เจ้าของ
+    <input type="text" name="owner_name" value="{{ v.owner_name if v else '' }}">
+  </label>
+  <label>เบอร์ติดต่อ/ข้อมูลติดต่อ
+    <input type="text" name="contact_info" value="{{ v.contact_info if v else '' }}">
+  </label>
+  <label>สีรถ
+    <input type="text" name="color" value="{{ v.color if v else '' }}">
+  </label>
+  <label>เลขตัวถัง (VIN)
+    <input type="text" name="vin" value="{{ v.vin if v else '' }}">
+  </label>
+  <label>วันที่บันทึกข้อมูลในระบบ
+    <input type="date" name="recorded_date" value="{{ v.recorded_date if v and v.recorded_date else '' }}">
+  </label>
+  <button type="submit">บันทึก</button>
+</form>
+{% endblock %}

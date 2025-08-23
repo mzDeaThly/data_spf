@@ -1,0 +1,33 @@
+
+databases:
+  - name: spf-fleet-postgres
+    plan: starter
+    region: singapore
+    postgresMajorVersion: "16"
+    databaseName: fleet
+    user: app_user
+
+services:
+  - type: web
+    name: fleet-registry
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn wsgi:app -b 0.0.0.0:8000 --workers 2 --threads 4"
+    autoDeploy: true
+    envVars:
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: spf-fleet-postgres
+          property: connectionString
+      - key: LINE_CHANNEL_SECRET
+        sync: false
+      - key: LINE_CHANNEL_ACCESS_TOKEN
+        sync: false
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        value: admin123
