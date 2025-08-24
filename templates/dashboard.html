@@ -45,8 +45,8 @@
     <thead>
       <tr>
         <th>เวลา (UTC)</th>
-        <th>แหล่งที่มา</th>
-        <th>ผู้ใช้งาน</th>
+        <th>บริบท</th>
+        <th>ผู้พิมพ์</th>
         <th>ข้อความค้นหา</th>
         <th>ผลลัพธ์</th>
         <th>สิทธิ์</th>
@@ -56,13 +56,20 @@
     {% for log in recent_logs %}
       <tr>
         <td data-label="เวลา">{{ log.when }}</td>
-        <td data-label="แหล่งที่มา">{{ log.source_type or '-' }}</td>
-        <td data-label="ผู้ใช้งาน">
-          {% if log.source_type == 'group' %}
-            {{ log.line_group_id or '-' }}
+        <td data-label="บริบท">
+          {# แสดง "ชื่อที่ตั้งค่า" ก่อน ถ้าไม่มีค่อย fallback เป็น id ย่อ #}
+          {% if log.context_display_name %}
+            {{ log.context_display_name }}
           {% else %}
-            {{ log.line_user_id or '-' }}
+            {% if log.source_type == 'group' %}
+              {{ (log.line_group_id[:6] ~ '...') if log.line_group_id else '-' }}
+            {% else %}
+              {{ (log.line_user_id[:6] ~ '...') if log.line_user_id else '-' }}
+            {% endif %}
           {% endif %}
+        </td>
+        <td data-label="ผู้พิมพ์">
+          {{ log.actor_display_name or ((log.line_user_id[:6] ~ '...') if log.line_user_id else '-') }}
         </td>
         <td data-label="ข้อความค้นหา">{{ log.query_text or '-' }}</td>
         <td data-label="ผลลัพธ์">{{ log.matched if log.matched is not none else '-' }}</td>
@@ -72,6 +79,7 @@
     </tbody>
   </table>
 </div>
+
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
