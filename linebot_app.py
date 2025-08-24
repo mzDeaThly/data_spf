@@ -1,7 +1,7 @@
 import base64, hmac, hashlib, json, requests, os
 from datetime import date
 from flask import Blueprint, request, current_app
-from models import Vehicle, LineUser, LineGroup, AuditLog, db
+from models import Vehicle, LineUser, LineGroup, AuditLog, db, ensure_auditlog_columns
 from utils import has_line_permission
 from flex_templates import to_flex_message
 
@@ -18,11 +18,43 @@ def _get_max_age_days() -> int:
     except Exception:
         return 35
 
-def _write_log(source_type, user_id, group_id, text, matched=None, allowed=True):
+def _fetch_line_display_name(access_token: str, source_type: str, user_id: str | None, group_id: str | None) -> str | None:
+    """
+    ดึงชื่อสมาชิกผู้พิมพ์จาก LINE
+    - 1:1   -> GET /v2/bot/profile/{userId}
+    - group -> GET /v2/bot/group/{groupId}/member/{userId}
+    - room  -> GET /v2/bot/room/{roomId}/member/{userId}
+    """
+    try:
+        headers = {"Authorization": f"Bearer {access_token}"}
+        if source_type == "user" and user_id:
+            url = f"https://api.line.me/v2/bot/profile/{user_id}"
+        elif source_type == "group" and user_id and group_id:
+            url = f"https://api.line.me/v2/bot/group/{group_id}/member/{user_id}"
+        elif source_type == "room" and user_id and group_id:
+            url = f"https://api.line.me/v2/bot/room/{group_id}/member/{user_id}"
+        else:
+            return None
+        r = requests.get(url, headers=headers, timeout=6)
+        if r.ok:
+            data = r.json()
+            return data.get("displayName")
+    except Exception:
+        current_app.logger.exception("fetch display name error")
+    return None
+
+def _write_log(source_type, user_id, group_id, text, matched=None, allowed=True,
+               actor_display_name=None, context_display_name=None):
     try:
         log = AuditLog(
-            source_type=source_type, line_user_id=user_id, line_group_id=group_id,
-            query_text=(text or "")[:255], matched=matched, allowed=allowed
+            source_type=source_type,
+            line_user_id=user_id,
+            line_group_id=group_id,
+            query_text=(text or "")[:255],
+            matched=matched,
+            allowed=allowed,
+            actor_display_name=actor_display_name,
+            context_display_name=context_display_name,
         )
         db.session.add(log)
         db.session.commit()
@@ -37,6 +69,12 @@ def webhook():
     if not channel_secret or not access_token:
         return "LINE config missing", 500
 
+    # ตรวจและเพิ่มคอลัมน์ใหม่ของ audit_logs ถ้ายังไม่มี
+    try:
+        ensure_auditlog_columns()
+    except Exception:
+        current_app.logger.exception("ensure_auditlog_columns failed")
+
     body = request.get_data()
     signature = request.headers.get("X-Line-Signature", "")
     if not _verify_signature(body, signature, channel_secret):
@@ -46,7 +84,7 @@ def webhook():
     events = payload.get("events", [])
 
     for ev in events:
-        if ev.get("type") != "message":
+        if ev.get("type") != "message": 
             continue
         if ev["message"].get("type") != "text":
             continue
@@ -81,13 +119,24 @@ def webhook():
             continue
         # ---------------------------------------------------------
 
-        # ตรวจสิทธิ์: ถ้าไม่ผ่านให้ log ไว้ด้วย
+        # ชื่อที่ตั้งค่าจากระบบ (context)
+        user_rec = LineUser.query.filter_by(line_user_id=user_id).first() if user_id else None
+        group_rec = LineGroup.query.filter_by(line_group_id=group_id).first() if group_id else None
+        context_name = (user_rec.display_name if (stype == "user" and user_rec and user_rec.display_name) else
+                        group_rec.display_name if (stype in ("group","room") and group_rec and group_rec.display_name) else
+                        None)
+
+        # ชื่อสมาชิกผู้พิมพ์จาก LINE
+        actor_name = _fetch_line_display_name(access_token, stype, user_id, group_id)
+
+        # ตรวจสิทธิ์
         if not has_line_permission(user_id, group_id):
-            _write_log(stype, user_id, group_id, text, matched=None, allowed=False)
+            _write_log(stype, user_id, group_id, text, matched=None, allowed=False,
+                       actor_display_name=actor_name, context_display_name=context_name)
             _reply(access_token, ev["replyToken"], [{"type": "text", "text": "คุณไม่มีสิทธิ์ใช้งานระบบนี้ กรุณาติดต่อผู้ดูแล"}])
             continue
 
-        # ค้นหาทะเบียน
+        # ค้นหา
         like = f"%{text}%"
         candidates = (
             Vehicle.query.filter(Vehicle.license_plate.ilike(like))
@@ -96,7 +145,7 @@ def webhook():
             .all()
         )
 
-        # กรองอายุข้อมูล
+        # กรองอายุ
         max_age = _get_max_age_days()
         today = date.today()
         fresh = []
@@ -107,14 +156,17 @@ def webhook():
             if (today - rd).days <= max_age:
                 fresh.append(v)
 
-        # ลง log พร้อมจำนวนผลลัพธ์ที่แสดง
-        _write_log(stype, user_id, group_id, text, matched=len(fresh), allowed=True)
+        # Log
+        _write_log(stype, user_id, group_id, text, matched=len(fresh), allowed=True,
+                   actor_display_name=actor_name, context_display_name=context_name)
 
         if not fresh:
-            _reply(access_token, ev["replyToken"], [{"type": "text", "text": f"ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน {max_age} วันแล้ว"}])
+            _reply(access_token, ev["replyToken"], [
+                {"type": "text", "text": f"ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน {max_age} วันแล้ว"}
+            ])
             continue
 
-        # ส่งเฉพาะ Flex Message
+        # เฉพาะ Flex
         flex = to_flex_message(fresh[:10])
         _reply(access_token, ev["replyToken"], [{
             "type": "flex",
