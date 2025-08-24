@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 from collections import Counter
 from sqlalchemy import func
-from zoneinfo import ZoneInfo   # ➜ เพิ่มบรรทัดนี้
+from zoneinfo import ZoneInfo
 
 from models import Vehicle, LineUser, LineGroup, Admin, AuditLog, db
 from utils import login_required, hash_password
@@ -13,7 +13,7 @@ dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/admin")
 @dashboard_bp.route("/")
 @login_required
 def index():
-    # สรุปจำนวนแบบเดิม
+    # --------- การ์ดสรุป ---------
     counts = {
         "vehicles": Vehicle.query.count(),
         "line_users": LineUser.query.count(),
@@ -21,14 +21,18 @@ def index():
         "admins": Admin.query.count(),
     }
 
-    # ------- กราฟยี่ห้อ -------
-    brand_rows = db.session.query(Vehicle.brand, func.count(Vehicle.id)).group_by(Vehicle.brand).all()
+    # --------- กราฟ 1: จำนวนรถตามยี่ห้อ (Top 8) ---------
+    brand_rows = (
+        db.session.query(Vehicle.brand, func.count(Vehicle.id))
+        .group_by(Vehicle.brand)
+        .all()
+    )
     brand_pairs = [((b or "ไม่ระบุ"), c) for b, c in brand_rows]
     brand_pairs.sort(key=lambda x: x[1], reverse=True)
     brand_labels = [p[0] for p in brand_pairs[:8]]
     brand_values = [p[1] for p in brand_pairs[:8]]
 
-    # ------- กราฟบันทึกต่อเดือน (12 เดือน) -------
+    # --------- กราฟ 2: จำนวนรถที่บันทึกต่อเดือน (12 เดือนล่าสุด) ---------
     def step_months(d: date, delta: int) -> date:
         y = d.year + (d.month - 1 + delta) // 12
         m = (d.month - 1 + delta) % 12 + 1
@@ -36,29 +40,36 @@ def index():
 
     today = date.today()
     start_month = step_months(date(today.year, today.month, 1), -11)
+
     per_month = Counter()
-    for (rd,) in db.session.query(Vehicle.recorded_date).filter(Vehicle.recorded_date >= start_month).all():
+    month_rows = (
+        db.session.query(Vehicle.recorded_date)
+        .filter(Vehicle.recorded_date >= start_month)
+        .all()
+    )
+    for (rd,) in month_rows:
         if rd:
             per_month[(rd.year, rd.month)] += 1
+
     month_labels, month_values = [], []
     for i in range(12):
         d = step_months(start_month, i)
-        month_labels.append(f"{d.month:02d}/{d.year + 543}")
+        month_labels.append(f"{d.month:02d}/{d.year + 543}")  # MM/BBBB (พ.ศ.)
         month_values.append(per_month.get((d.year, d.month), 0))
 
-    # ------- สถานะสิทธิ์ LINE -------
+    # --------- กราฟ 3–4: สถานะสิทธิ์ LINE ---------
     users_active = db.session.query(func.count(LineUser.id)).filter(LineUser.is_active.is_(True)).scalar() or 0
     users_inactive = db.session.query(func.count(LineUser.id)).filter(LineUser.is_active.is_(False)).scalar() or 0
     groups_active = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(True)).scalar() or 0
     groups_inactive = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(False)).scalar() or 0
 
-# ============== LOG: ใช้เวลาไทย (Asia/Bangkok) ==============
+    # --------- กราฟ 5: จำนวนการค้นหาต่อวัน (อิงเวลาไทย) ---------
     tz_bkk = ZoneInfo("Asia/Bangkok")
     today_bkk = datetime.now(tz_bkk).date()
     start_day_bkk = today_bkk - timedelta(days=13)
 
-    # แปลง "เที่ยงคืนเวลาไทย" → UTC เพื่อไป filter ใน DB (ที่เก็บเป็น UTC)
-    start_bkk_dt = datetime.combine(start_day_bkk, time(0, 0), tzinfo=tz_bkk)
+    # เที่ยงคืนของวันเริ่มต้น (เวลาไทย) -> แปลงเป็น UTC เพื่อ filter DB (เก็บเป็น UTC)
+    start_bkk_dt = datetime.combine(start_day_bkk, time.min, tzinfo=tz_bkk)
     start_utc_dt = start_bkk_dt.astimezone(ZoneInfo("UTC"))
 
     per_day = Counter()
@@ -69,42 +80,34 @@ def index():
     ):
         if not w:
             continue
-        # day ตามเวลาไทย
         local_day = w.astimezone(tz_bkk).date()
         per_day[local_day] += 1
 
-    # ป้ายกำกับ dd/mm ตาม “วันไทย”
     day_labels, day_values = [], []
     for i in range(14):
         d = start_day_bkk + timedelta(days=i)
-        day_labels.append(f"{d.day:02d}/{d.month:02d}")
+        day_labels.append(f"{d.day:02d}/{d.month:02d}")  # dd/mm (ไทย)
         day_values.append(per_day.get(d, 0))
 
-    # ดึง Log ล่าสุด (เดี๋ยวค่อย format ที่ template ด้วย tz_bkk)
+    # ตาราง Log ล่าสุด & รายการรถล่าสุด
     recent_logs = AuditLog.query.order_by(AuditLog.id.desc()).limit(20).all()
-
-    # (ตัวอย่าง) ดึงรายการรถล่าสุด ของเดิม
     recent = Vehicle.query.order_by(Vehicle.id.desc()).limit(5).all()
 
     return render_template(
         "dashboard.html",
         counts=counts,
-        # ข้อมูลกราฟ/การ์ดเดิมของคุณ...
-        # brand_labels=..., brand_values=..., month_labels=..., month_values=...,
-        # users_active=..., users_inactive=..., groups_active=..., groups_inactive=...,
-        # ข้อมูลกราฟ Log
-        day_labels=day_labels,
-        day_values=day_values,
-        # ตาราง Log + timezone ให้ template ใช้ astimezone
-        recent_logs=recent_logs,
-        tz_bkk=tz_bkk,     # ➜ ส่งโซนเวลาไทยให้ template
-        # อื่น ๆ
+        brand_labels=brand_labels, brand_values=brand_values,
+        month_labels=month_labels, month_values=month_values,
+        users_active=users_active, users_inactive=users_inactive,
+        groups_active=groups_active, groups_inactive=groups_inactive,
+        day_labels=day_labels, day_values=day_values,
+        recent_logs=recent_logs, tz_bkk=tz_bkk,
         recent=recent,
     )
 
 
 # -----------------------------
-# Vehicles (เหมือนเดิมทั้งหมด)
+# Vehicles
 # -----------------------------
 @dashboard_bp.route("/vehicles")
 @login_required
@@ -202,7 +205,10 @@ def vehicles_upload():
         cols = set([c.strip() for c in (reader.fieldnames or [])])
 
         if not (cols >= required):
-            flash("หัวคอลัมน์ไม่ถูกต้อง ต้องมีอย่างน้อย license_plate,brand,model,owner_name,contact_info", "danger")
+            flash(
+                "หัวคอลัมน์ไม่ถูกต้อง ต้องมีอย่างน้อย license_plate,brand,model,owner_name,contact_info",
+                "danger",
+            )
             return redirect(url_for("dashboard.vehicles_upload"))
 
         count = 0
@@ -225,7 +231,8 @@ def vehicles_upload():
                 vin=(row.get("vin") or "").strip() if "vin" in cols else None,
                 recorded_date=rec_date,
             )
-            db.session.add(v); count += 1
+            db.session.add(v)
+            count += 1
 
         db.session.commit()
         flash(f"อัปโหลดสำเร็จ {count} รายการ", "success")
@@ -235,13 +242,14 @@ def vehicles_upload():
 
 
 # -----------------------------
-# LINE Users / Groups / Admins (เหมือนเดิม)
+# LINE Users
 # -----------------------------
 @dashboard_bp.route("/line/users")
 @login_required
 def line_users_list():
     users = LineUser.query.order_by(LineUser.id.desc()).all()
     return render_template("line_users_list.html", users=users)
+
 
 @dashboard_bp.route("/line/users/add", methods=["POST"])
 @login_required
@@ -251,11 +259,13 @@ def line_users_add():
     dname = (request.form.get("display_name") or "").strip()
     if uid:
         u = LineUser(line_user_id=uid, is_active=active, display_name=dname)
-        db.session.add(u); db.session.commit()
+        db.session.add(u)
+        db.session.commit()
         flash("เพิ่ม User สำเร็จ", "success")
     else:
         flash("กรุณากรอก LINE UserID", "warning")
     return redirect(url_for("dashboard.line_users_list"))
+
 
 @dashboard_bp.route("/line/users/<int:uid>/toggle", methods=["POST"])
 @login_required
@@ -266,13 +276,16 @@ def line_users_toggle(uid):
     flash("อัปเดตสถานะแล้ว", "info")
     return redirect(url_for("dashboard.line_users_list"))
 
+
 @dashboard_bp.route("/line/users/<int:uid>/delete", methods=["POST"])
 @login_required
 def line_users_delete(uid):
     u = LineUser.query.get_or_404(uid)
-    db.session.delete(u); db.session.commit()
+    db.session.delete(u)
+    db.session.commit()
     flash("ลบ User แล้ว", "info")
     return redirect(url_for("dashboard.line_users_list"))
+
 
 @dashboard_bp.route("/line/users/<int:uid>/update", methods=["POST"])
 @login_required
@@ -283,11 +296,16 @@ def line_users_update(uid):
     flash("บันทึกชื่อผู้ใช้แล้ว", "success")
     return redirect(url_for("dashboard.line_users_list"))
 
+
+# -----------------------------
+# LINE Groups
+# -----------------------------
 @dashboard_bp.route("/line/groups")
 @login_required
 def line_groups_list():
     groups = LineGroup.query.order_by(LineGroup.id.desc()).all()
     return render_template("line_groups_list.html", groups=groups)
+
 
 @dashboard_bp.route("/line/groups/add", methods=["POST"])
 @login_required
@@ -297,11 +315,13 @@ def line_groups_add():
     dname = (request.form.get("display_name") or "").strip()
     if gid:
         g = LineGroup(line_group_id=gid, is_active=active, display_name=dname)
-        db.session.add(g); db.session.commit()
+        db.session.add(g)
+        db.session.commit()
         flash("เพิ่ม Group สำเร็จ", "success")
     else:
         flash("กรุณากรอก LINE GroupID", "warning")
     return redirect(url_for("dashboard.line_groups_list"))
+
 
 @dashboard_bp.route("/line/groups/<int:gid>/toggle", methods=["POST"])
 @login_required
@@ -312,13 +332,16 @@ def line_groups_toggle(gid):
     flash("อัปเดตสถานะแล้ว", "info")
     return redirect(url_for("dashboard.line_groups_list"))
 
+
 @dashboard_bp.route("/line/groups/<int:gid>/delete", methods=["POST"])
 @login_required
 def line_groups_delete(gid):
     g = LineGroup.query.get_or_404(gid)
-    db.session.delete(g); db.session.commit()
+    db.session.delete(g)
+    db.session.commit()
     flash("ลบ Group แล้ว", "info")
     return redirect(url_for("dashboard.line_groups_list"))
+
 
 @dashboard_bp.route("/line/groups/<int:gid>/update", methods=["POST"])
 @login_required
@@ -329,11 +352,16 @@ def line_groups_update(gid):
     flash("บันทึกชื่อกลุ่มแล้ว", "success")
     return redirect(url_for("dashboard.line_groups_list"))
 
+
+# -----------------------------
+# Admins
+# -----------------------------
 @dashboard_bp.route("/admins")
 @login_required
 def admins_list():
     admins = Admin.query.order_by(Admin.id.desc()).all()
     return render_template("admins_list.html", admins=admins)
+
 
 @dashboard_bp.route("/admins/add", methods=["GET", "POST"])
 @login_required
@@ -345,10 +373,12 @@ def admins_add():
             flash("กรุณากรอกข้อมูลให้ครบ", "warning")
             return redirect(url_for("dashboard.admins_add"))
         a = Admin(username=username, password=hash_password(password))
-        db.session.add(a); db.session.commit()
+        db.session.add(a)
+        db.session.commit()
         flash("เพิ่มผู้ดูแลระบบสำเร็จ", "success")
         return redirect(url_for("dashboard.admins_list"))
     return render_template("admin_form.html", admin=None)
+
 
 @dashboard_bp.route("/admins/<int:aid>/edit", methods=["GET", "POST"])
 @login_required
@@ -357,12 +387,15 @@ def admins_edit(aid):
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = (request.form.get("password") or "").strip()
-        if username: admin.username = username
-        if password: admin.password = hash_password(password)
+        if username:
+            admin.username = username
+        if password:
+            admin.password = hash_password(password)
         db.session.commit()
         flash("บันทึกข้อมูลสำเร็จ", "success")
         return redirect(url_for("dashboard.admins_list"))
     return render_template("admin_form.html", admin=admin)
+
 
 @dashboard_bp.route("/admins/<int:aid>/delete", methods=["POST"])
 @login_required
@@ -371,6 +404,7 @@ def admins_delete(aid):
     if Admin.query.count() <= 1:
         flash("ไม่สามารถลบผู้ดูแลระบบคนสุดท้ายได้", "danger")
         return redirect(url_for("dashboard.admins_list"))
-    db.session.delete(admin); db.session.commit()
+    db.session.delete(admin)
+    db.session.commit()
     flash("ลบผู้ดูแลระบบแล้ว", "info")
     return redirect(url_for("dashboard.admins_list"))
