@@ -1,1 +1,26 @@
-{% extends 'base.html' %}{% block content %}<h1>ผู้ดูแลระบบ</h1><p><a class='btn' href='{{ url_for("dashboard.admins_add") }}'>+ เพิ่มผู้ดูแลระบบ</a></p><table><thead><tr><th>ID</th><th>Username</th><th>จัดการ</th></tr></thead><tbody>{% for a in admins %}<tr><td>{{ a.id }}</td><td>{{ a.username }}</td><td><a href='{{ url_for("dashboard.admins_edit", aid=a.id) }}'>แก้ไข</a><form method='post' action='{{ url_for("dashboard.admins_delete", aid=a.id) }}' class='inline' onsubmit='return confirm("ยืนยันการลบ?")'><button type='submit'>ลบ</button></form></td></tr>{% endfor %}</tbody></table>{% endblock %}
+{% extends 'base.html' %}
+{% block content %}
+<h1>ผู้ดูแลระบบ</h1>
+<p>
+  <a class="btn" href="{{ url_for('dashboard.admins_add') }}">+ เพิ่มผู้ดูแลระบบ</a>
+</p>
+<table>
+  <thead><tr><th>ID</th><th>ชื่อผู้ใช้</th><th>จัดการ</th></tr></thead>
+  <tbody>
+  {% for a in admins %}
+    <tr>
+      <td data-label="ID">{{ a.id }}</td>
+      <td data-label="ชื่อผู้ใช้">{{ a.username }}</td>
+      <td>
+        <div class="inline">
+          <a class="btn ghost" href="{{ url_for('dashboard.admins_edit', aid=a.id) }}">แก้ไข</a>
+          <form method="post" action="{{ url_for('dashboard.admins_delete', aid=a.id) }}" class="inline" onsubmit="return confirm('ยืนยันการลบ?')">
+            <button type="submit" class="btn danger">ลบ</button>
+          </form>
+        </div>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
