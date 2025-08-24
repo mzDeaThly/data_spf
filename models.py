@@ -1,6 +1,8 @@
 
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
+from sqlalchemy import inspect
+
 
 db = SQLAlchemy()
 
@@ -64,26 +66,41 @@ class AuditLog(db.Model):
 
 def ensure_auditlog_columns():
     """
-    เพิ่มคอลัมน์ใหม่ในตาราง audit_logs หากยังไม่มี (ไม่ต้องใช้ Alembic ก็ได้)
-    เรียกใช้ตอนมี request ครั้งแรกๆ เพื่อความปลอดภัย
+    เพิ่มคอลัมน์ใหม่ให้ audit_logs ถ้ายังไม่มี:
+      - actor_display_name
+      - context_display_name
+    ทำงานเพียงครั้งเดียวต่อโปรเซส
     """
+    global _AUDITLOG_CHECKED
+    if _AUDITLOG_CHECKED:
+        return
+
     engine = db.engine
     insp = inspect(engine)
+
+    # ถ้ายังไม่มีตาราง audit_logs ให้ปล่อยให้ db.create_all() จัดการ
     if "audit_logs" not in insp.get_table_names():
-        # ยังไม่เคยสร้างตาราง — ให้ db.create_all() สร้างตามโมเดลนี้
+        _AUDITLOG_CHECKED = True
         return
 
-    existing = {c["name"] for c in insp.get_columns("audit_logs")}
+    existing_cols = {c["name"] for c in insp.get_columns("audit_logs")}
     to_add = []
-    if "actor_display_name" not in existing:
-        to_add.append(("actor_display_name", "VARCHAR(120)"))
-    if "context_display_name" not in existing:
-        to_add.append(("context_display_name", "VARCHAR(120)"))
+    if "actor_display_name" not in existing_cols:
+        to_add.append(("actor_display_name", "TEXT" if engine.dialect.name == "sqlite" else "VARCHAR(120)"))
+    if "context_display_name" not in existing_cols:
+        to_add.append(("context_display_name", "TEXT" if engine.dialect.name == "sqlite" else "VARCHAR(120)"))
 
     if not to_add:
+        _AUDITLOG_CHECKED = True
         return
 
-    ddl_tpl = "ALTER TABLE audit_logs ADD COLUMN {col} {typ};"
-    with engine.begin() as conn:
-        for col, typ in to_add:
-            conn.exec_driver_sql(ddl_tpl.format(col=col, typ=typ))
+    try:
+        with engine.begin() as conn:
+            for col, typ in to_add:
+                conn.exec_driver_sql(f"ALTER TABLE audit_logs ADD COLUMN {col} {typ};")
+    except Exception as e:
+        # ไม่ให้ระบบล่ม: log ไว้แล้วไปต่อ
+        import logging
+        logging.exception("ALTER TABLE audit_logs failed: %s", e)
+    finally:
+        _AUDITLOG_CHECKED = True
