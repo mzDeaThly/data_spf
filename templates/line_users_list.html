@@ -1,13 +1,13 @@
-
 {% extends 'base.html' %}
 {% block content %}
 <h1>ผู้ใช้ LINE</h1>
+
 <form method="post" action="{{ url_for('dashboard.line_users_add') }}" class="form-card">
   <label>LINE UserID
     <input type="text" name="line_user_id" required>
   </label>
   <label>ชื่อที่ตั้งค่า (ออปชัน)
-    <input type="text" name="display_name" placeholder="เช่น พนักงานขนส่ง กะเช้า">
+    <input type="text" name="display_name" placeholder="เช่น ชื่อเจ้าของ User ID">
   </label>
   <label class="checkbox">
     <input type="checkbox" name="is_active" checked> อนุญาตการใช้งาน
@@ -20,22 +20,24 @@
   <tbody>
   {% for u in users %}
     <tr>
-      <td>{{ u.id }}</td>
-      <td style="word-break: break-all;">{{ u.line_user_id }}</td>
-      <td>
+      <td data-label="ID">{{ u.id }}</td>
+      <td data-label="UserID" style="word-break: break-all;">{{ u.line_user_id }}</td>
+      <td data-label="ชื่อที่ตั้งค่า">
         <form method="post" action="{{ url_for('dashboard.line_users_update', uid=u.id) }}" class="inline">
           <input type="text" name="display_name" value="{{ u.display_name or '' }}" placeholder="ตั้งชื่อ...">
-          <button type="submit">บันทึกชื่อ</button>
+          <button type="submit" class="btn">บันทึกชื่อ</button>
         </form>
       </td>
-      <td>{{ 'Active' if u.is_active else 'Inactive' }}</td>
+      <td data-label="สถานะ">{{ 'Active' if u.is_active else 'Inactive' }}</td>
       <td>
-        <form method="post" action="{{ url_for('dashboard.line_users_toggle', uid=u.id) }}" class="inline">
-          <button type="submit">Toggle</button>
-        </form>
-        <form method="post" action="{{ url_for('dashboard.line_users_delete', uid=u.id) }}" class="inline" onsubmit="return confirm('ยืนยันการลบ?')">
-          <button type="submit">ลบ</button>
-        </form>
+        <div class="inline">
+          <form method="post" action="{{ url_for('dashboard.line_users_toggle', uid=u.id) }}" class="inline">
+            <button type="submit" class="btn ghost">Toggle</button>
+          </form>
+          <form method="post" action="{{ url_for('dashboard.line_users_delete', uid=u.id) }}" class="inline" onsubmit="return confirm('ยืนยันการลบ?')">
+            <button type="submit" class="btn danger">ลบ</button>
+          </form>
+        </div>
       </td>
     </tr>
   {% endfor %}
