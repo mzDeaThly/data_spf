@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from datetime import datetime, date, timedelta
 from collections import Counter
 from sqlalchemy import func
+from zoneinfo import ZoneInfo   # ➜ เพิ่มบรรทัดนี้
 
 from models import Vehicle, LineUser, LineGroup, Admin, AuditLog, db
 from utils import login_required, hash_password
@@ -51,37 +52,53 @@ def index():
     groups_active = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(True)).scalar() or 0
     groups_inactive = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(False)).scalar() or 0
 
-    # ------- Log การค้นหา: กราฟต่อวัน (14 วัน) + ตารางล่าสุด -------
-    start_day = today - timedelta(days=13)
-    per_day = Counter()
-    for (w,) in db.session.query(AuditLog.when).filter(AuditLog.when >= datetime.combine(start_day, datetime.min.time())).all():
-        if w:
-            per_day[w.date()] += 1
+# ============== LOG: ใช้เวลาไทย (Asia/Bangkok) ==============
+    tz_bkk = ZoneInfo("Asia/Bangkok")
+    today_bkk = datetime.now(tz_bkk).date()
+    start_day_bkk = today_bkk - timedelta(days=13)
 
+    # แปลง "เที่ยงคืนเวลาไทย" → UTC เพื่อไป filter ใน DB (ที่เก็บเป็น UTC)
+    start_bkk_dt = datetime.combine(start_day_bkk, time(0, 0), tzinfo=tz_bkk)
+    start_utc_dt = start_bkk_dt.astimezone(ZoneInfo("UTC"))
+
+    per_day = Counter()
+    for (w,) in (
+        db.session.query(AuditLog.when)
+        .filter(AuditLog.when >= start_utc_dt)
+        .all()
+    ):
+        if not w:
+            continue
+        # day ตามเวลาไทย
+        local_day = w.astimezone(tz_bkk).date()
+        per_day[local_day] += 1
+
+    # ป้ายกำกับ dd/mm ตาม “วันไทย”
     day_labels, day_values = [], []
     for i in range(14):
-        d = start_day + timedelta(days=i)
-        day_labels.append(f"{d.day:02d}/{d.month:02d}")  # dd/mm
+        d = start_day_bkk + timedelta(days=i)
+        day_labels.append(f"{d.day:02d}/{d.month:02d}")
         day_values.append(per_day.get(d, 0))
 
-    recent_logs = (
-        AuditLog.query.order_by(AuditLog.id.desc())
-        .limit(20)
-        .all()
-    )
+    # ดึง Log ล่าสุด (เดี๋ยวค่อย format ที่ template ด้วย tz_bkk)
+    recent_logs = AuditLog.query.order_by(AuditLog.id.desc()).limit(20).all()
 
-    # รายการรถล่าสุด
+    # (ตัวอย่าง) ดึงรายการรถล่าสุด ของเดิม
     recent = Vehicle.query.order_by(Vehicle.id.desc()).limit(5).all()
 
     return render_template(
         "dashboard.html",
         counts=counts,
-        brand_labels=brand_labels, brand_values=brand_values,
-        month_labels=month_labels, month_values=month_values,
-        users_active=users_active, users_inactive=users_inactive,
-        groups_active=groups_active, groups_inactive=groups_inactive,
-        day_labels=day_labels, day_values=day_values,
+        # ข้อมูลกราฟ/การ์ดเดิมของคุณ...
+        # brand_labels=..., brand_values=..., month_labels=..., month_values=...,
+        # users_active=..., users_inactive=..., groups_active=..., groups_inactive=...,
+        # ข้อมูลกราฟ Log
+        day_labels=day_labels,
+        day_values=day_values,
+        # ตาราง Log + timezone ให้ template ใช้ astimezone
         recent_logs=recent_logs,
+        tz_bkk=tz_bkk,     # ➜ ส่งโซนเวลาไทยให้ template
+        # อื่น ๆ
         recent=recent,
     )
 
