@@ -44,3 +44,14 @@ class Admin(db.Model):
     password = db.Column(db.String(256), nullable=False)  # hashed
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class AuditLog(db.Model):
+    __tablename__ = "audit_logs"
+    id = db.Column(db.Integer, primary_key=True)
+    when = db.Column(db.DateTime, default=datetime.utcnow, index=True)  # เวลา (UTC)
+    source_type = db.Column(db.String(10))  # 'user' | 'group' | 'room'
+    line_user_id = db.Column(db.String(64), index=True)
+    line_group_id = db.Column(db.String(64), index=True)
+    query_text = db.Column(db.String(255), index=True)
+    matched = db.Column(db.Integer)  # จำนวนรายการที่พบ (หลังกรองอายุ)
+    allowed = db.Column(db.Boolean, default=True)  # ผ่านสิทธิ์หรือไม่
