@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from datetime import datetime, date
 from collections import Counter
 from sqlalchemy import func
@@ -12,15 +12,63 @@ dashboard_bp = Blueprint("dashboard", __name__, url_prefix="/admin")
 @dashboard_bp.route("/")
 @login_required
 def index():
-    # --------- สรุปจำนวน (เหมือนเดิม) ---------
+    """หน้าแดชบอร์ด: การ์ดสรุป + เกจ + กราฟ"""
+    # --------- การ์ดสรุปแบบเดิม ---------
+    total_vehicles = Vehicle.query.count()
+    total_users = LineUser.query.count()
+    total_groups = LineGroup.query.count()
+    total_admins = Admin.query.count()
     counts = {
-        "vehicles": Vehicle.query.count(),
-        "line_users": LineUser.query.count(),
-        "line_groups": LineGroup.query.count(),
-        "admins": Admin.query.count(),
+        "vehicles": total_vehicles,
+        "line_users": total_users,
+        "line_groups": total_groups,
+        "admins": total_admins,
     }
 
-    # --------- กราฟ 1: จำนวนรถตามยี่ห้อ (Top 8) ---------
+    # ใช้ค่าจำกัดอายุข้อมูลจาก ENV/Config (ค่าเริ่มต้น 35)
+    max_age_days = int(current_app.config.get("LINE_MAX_AGE_DAYS", 35))
+
+    # --------- คำนวณ Fresh/Stale + อายุเฉลี่ย + Aging Bucket ---------
+    # ดึงวันที่บันทึกทุกคัน (เฉพาะที่มีวันที่)
+    rows = db.session.query(Vehicle.recorded_date).all()
+    today = date.today()
+    ages = []
+    fresh_count = 0
+    stale_count = 0
+    for (rd,) in rows:
+        if not rd:
+            # ไม่มีวันที่ → นับเป็น stale
+            stale_count += 1
+            continue
+        days = (today - rd).days
+        ages.append(days)
+        if days <= max_age_days:
+            fresh_count += 1
+        else:
+            stale_count += 1
+
+    avg_age_days = round(sum(ages) / len(ages), 1) if ages else 0.0
+    freshness_pct = round((fresh_count / total_vehicles) * 100, 2) if total_vehicles else 0.0
+
+    # Aging buckets (ช่วงอายุข้อมูล)
+    # 0-7, 8-14, 15-21, 22-28, 29-35, 36+
+    aging_labels = ["0-7", "8-14", "15-21", "22-28", "29-35", f">{max_age_days}"]
+    aging_bins = [0, 0, 0, 0, 0, 0]
+    for d in ages:
+        if d <= 7:
+            aging_bins[0] += 1
+        elif d <= 14:
+            aging_bins[1] += 1
+        elif d <= 21:
+            aging_bins[2] += 1
+        elif d <= 28:
+            aging_bins[3] += 1
+        elif d <= max_age_days:
+            aging_bins[4] += 1
+        else:
+            aging_bins[5] += 1
+
+    # --------- กราฟจำนวนรถตามยี่ห้อ (Top 8) ---------
     brand_rows = (
         db.session.query(Vehicle.brand, func.count(Vehicle.id))
         .group_by(Vehicle.brand)
@@ -31,45 +79,51 @@ def index():
     brand_labels = [p[0] for p in brand_pairs[:8]]
     brand_values = [p[1] for p in brand_pairs[:8]]
 
-    # --------- กราฟ 2: จำนวนรถที่บันทึกต่อเดือน (12 เดือนล่าสุด) ---------
+    # --------- กราฟจำนวนรถที่บันทึกต่อเดือน (12 เดือนล่าสุด) ---------
     def step_months(d: date, delta: int) -> date:
         y = d.year + (d.month - 1 + delta) // 12
         m = (d.month - 1 + delta) % 12 + 1
         return date(y, m, 1)
 
-    today = date.today()
     start = step_months(date(today.year, today.month, 1), -11)
-
-    rec_rows = (
+    month_rows = (
         db.session.query(Vehicle.recorded_date)
         .filter(Vehicle.recorded_date >= start)
         .all()
     )
-    cnt = Counter()
-    for (rd,) in rec_rows:
+    per_month = Counter()
+    for (rd,) in month_rows:
         if rd:
-            cnt[(rd.year, rd.month)] += 1
+            per_month[(rd.year, rd.month)] += 1
 
     month_labels, month_values = [], []
     for i in range(12):
         d = step_months(start, i)
-        key = (d.year, d.month)
-        # แสดงเป็น MM/BBBB (ปี พ.ศ.)
-        month_labels.append(f"{d.month:02d}/{d.year + 543}")
-        month_values.append(cnt.get(key, 0))
+        month_labels.append(f"{d.month:02d}/{d.year + 543}")  # MM/BBBB (พ.ศ.)
+        month_values.append(per_month.get((d.year, d.month), 0))
 
-    # --------- กราฟ 3: สถานะสิทธิ์ LINE (ผู้ใช้/กลุ่ม) ---------
+    # --------- สถานะสิทธิ์ LINE (ผู้ใช้/กลุ่ม) สำหรับ doughnut ---------
     users_active = db.session.query(func.count(LineUser.id)).filter(LineUser.is_active.is_(True)).scalar() or 0
     users_inactive = db.session.query(func.count(LineUser.id)).filter(LineUser.is_active.is_(False)).scalar() or 0
     groups_active = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(True)).scalar() or 0
     groups_inactive = db.session.query(func.count(LineGroup.id)).filter(LineGroup.is_active.is_(False)).scalar() or 0
 
-    # รายการล่าสุด (โชว์ในตารางด้านล่าง)
+    # --------- รายการล่าสุด (โชว์ในตาราง) ---------
     recent = Vehicle.query.order_by(Vehicle.id.desc()).limit(5).all()
 
     return render_template(
         "dashboard.html",
         counts=counts,
+        # เกจ
+        max_age_days=max_age_days,
+        freshness_pct=freshness_pct,
+        avg_age_days=avg_age_days,
+        fresh_count=fresh_count,
+        stale_count=stale_count,
+        # Aging bar
+        aging_labels=aging_labels,
+        aging_values=aging_bins,
+        # แผนภูมิอื่น ๆ
         brand_labels=brand_labels,
         brand_values=brand_values,
         month_labels=month_labels,
@@ -78,6 +132,7 @@ def index():
         users_inactive=users_inactive,
         groups_active=groups_active,
         groups_inactive=groups_inactive,
+        # รายการล่าสุด
         recent=recent,
     )
 
