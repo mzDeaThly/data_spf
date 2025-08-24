@@ -1,37 +1,40 @@
-
 <!doctype html>
 <html lang="th">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ระบบทะเบียนรถภายในบริษัท</title>
+  <title>SPF Fleet Dashboard</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <nav class="nav">
+  <div class="nav">
     <div class="container">
-      <a href="{{ url_for('dashboard.index') }}" class="brand">ระบบทะเบียนรถภายในบริษัท</a>
-      {% if session.get('admin_id') %}
-      <div class="menu">
+      <a class="brand" href="{{ url_for('dashboard.index') }}">SPF Fleet</a>
+      <!-- ปุ่ม Hamburger -->
+      <button id="hamburger" class="hamburger" aria-label="เปิดเมนู" aria-controls="main-menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="menu" id="main-menu">
         <a href="{{ url_for('dashboard.vehicles_list') }}">ทะเบียนรถ</a>
         <a href="{{ url_for('dashboard.line_users_list') }}">ผู้ใช้ LINE</a>
         <a href="{{ url_for('dashboard.line_groups_list') }}">กลุ่ม LINE</a>
         <a href="{{ url_for('dashboard.admins_list') }}">ผู้ดูแลระบบ</a>
-        <a href="{{ url_for('auth.logout') }}">ออกจากระบบ</a>
-      </div>
-      {% endif %}
+      </nav>
     </div>
-  </nav>
+  </div>
 
-  <main class="container">
+  <div class="container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
-        {% for cat, msg in messages %}
-          <div class="alert {{ cat }}">{{ msg }}</div>
+        {% for category, message in messages %}
+          <div class="alert {{ category }}">{{ message }}</div>
         {% endfor %}
       {% endif %}
     {% endwith %}
+
     {% block content %}{% endblock %}
-  </main>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
