@@ -1,10 +1,8 @@
-
 from datetime import date
 
 def format_thai_be(d: date | None) -> str:
     if not d:
         return "-"
-    # dd/mm/BBBB (พ.ศ. = ค.ศ. + 543)
     return f"{d.day:02d}/{d.month:02d}/{d.year + 543}"
 
 def days_since(d: date | None) -> str:
@@ -14,7 +12,6 @@ def days_since(d: date | None) -> str:
     return f"{delta} วัน"
 
 def vehicle_bubble(v):
-    # Flex Message Bubble per vehicle
     return {
       "type": "bubble",
       "body": {
@@ -63,5 +60,4 @@ def to_flex_message(vehicles):
     bubbles = [vehicle_bubble(v) for v in vehicles]
     if len(bubbles) == 1:
         return bubbles[0]
-    else:
-        return {"type":"carousel","contents": bubbles}
+    return {"type":"carousel","contents": bubbles}
