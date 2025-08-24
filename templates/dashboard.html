@@ -44,9 +44,9 @@
   <table>
     <thead>
       <tr>
-        <th>เวลา (UTC)</th>
-        <th>แหล่งที่มา</th>          <!-- group/user (ชื่อที่ตั้งค่า) -->
-        <th>ผู้ใช้งาน/ผู้พิมพ์</th>   <!-- ชื่อใน LINE -->
+        <th>เวลา (ICT)</th>         <!-- เดิมเขียนว่า UTC -->
+        <th>แหล่งที่มา</th>        <!-- group/user (ชื่อที่ตั้งค่า) -->
+        <th>ผู้ใช้งาน/ผู้พิมพ์</th> <!-- ชื่อใน LINE -->
         <th>ข้อความค้นหา</th>
         <th>ผลลัพธ์</th>
         <th>สิทธิ์</th>
@@ -56,7 +56,10 @@
     {% for log in recent_logs %}
       {% set st = 'group' if log.source_type in ['group','room'] else 'user' %}
       <tr>
-        <td data-label="เวลา">{{ log.when }}</td>
+        <!-- แปลงเวลาไทย + ฟอร์แมต dd/mm/yyyy HH:MM -->
+        <td data-label="เวลา">
+          {{ (log.when.astimezone(tz_bkk)).strftime('%d/%m/%Y %H:%M') }} น.
+        </td>
 
         <!-- แหล่งที่มา: group/user (ชื่อที่ตั้งค่า) -->
         <td data-label="แหล่งที่มา">
@@ -71,7 +74,7 @@
           {% endif %}
         </td>
 
-        <!-- ผู้ใช้งาน/ผู้พิมพ์: ชื่อใน LINE ถ้าดึงได้, ไม่งั้นย่อ userId -->
+        <!-- ผู้ใช้งาน/ผู้พิมพ์: ชื่อใน LINE ถ้าดึงได้ -->
         <td data-label="ผู้ใช้งาน/ผู้พิมพ์">
           {{ log.actor_display_name or ((log.line_user_id[:6] ~ '...') if log.line_user_id else '-') }}
         </td>
@@ -84,7 +87,6 @@
     </tbody>
   </table>
 </div>
-
 
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
