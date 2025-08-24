@@ -79,3 +79,33 @@ td form.inline{display:inline-flex}
   td::before{content:attr(data-label);font-weight:600;color:#c8cedd}
   td:last-child{grid-template-columns:1fr}
 }
+
+
+/* --- Dashboard compact --- */
+.charts-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap:12px;
+}
+.card.chart{padding:12px}
+.card.chart h3{margin:0 0 8px}
+.chart-wrap{
+  position:relative;
+  height:200px;           /* ความสูงกราฟคงที่ (แก้ได้ 160–260) */
+  width:100%;
+}
+.chart-wrap canvas{
+  position:absolute; inset:0;
+  width:100% !important;
+  height:100% !important; /* ให้ Chart.js เติมพื้นที่เท่าที่กำหนด */
+}
+
+/* ตารางยาวให้เลื่อนในกรอบ ไม่ดันความสูงทั้งหน้า */
+.card.table-scroll{
+  max-height:380px;       /* ปรับได้ตามต้องการ */
+  overflow:auto;
+}
+
+/* ระยะขอบหน้ารวม ให้กระชับขึ้นนิดหน่อย */
+.grid + .grid, .grid + .card{ margin-top:12px }
+
