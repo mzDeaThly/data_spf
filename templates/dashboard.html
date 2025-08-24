@@ -45,8 +45,8 @@
     <thead>
       <tr>
         <th>เวลา (UTC)</th>
-        <th>บริบท</th>
-        <th>ผู้พิมพ์</th>
+        <th>แหล่งที่มา</th>          <!-- group/user (ชื่อที่ตั้งค่า) -->
+        <th>ผู้ใช้งาน/ผู้พิมพ์</th>   <!-- ชื่อใน LINE -->
         <th>ข้อความค้นหา</th>
         <th>ผลลัพธ์</th>
         <th>สิทธิ์</th>
@@ -54,23 +54,28 @@
     </thead>
     <tbody>
     {% for log in recent_logs %}
+      {% set st = 'group' if log.source_type in ['group','room'] else 'user' %}
       <tr>
         <td data-label="เวลา">{{ log.when }}</td>
-        <td data-label="บริบท">
-          {# แสดง "ชื่อที่ตั้งค่า" ก่อน ถ้าไม่มีค่อย fallback เป็น id ย่อ #}
+
+        <!-- แหล่งที่มา: group/user (ชื่อที่ตั้งค่า) -->
+        <td data-label="แหล่งที่มา">
           {% if log.context_display_name %}
-            {{ log.context_display_name }}
+            {{ st }} ({{ log.context_display_name }})
           {% else %}
-            {% if log.source_type == 'group' %}
-              {{ (log.line_group_id[:6] ~ '...') if log.line_group_id else '-' }}
+            {% if st == 'group' %}
+              {{ st }} ({{ (log.line_group_id[:6] ~ '...') if log.line_group_id else '-' }})
             {% else %}
-              {{ (log.line_user_id[:6] ~ '...') if log.line_user_id else '-' }}
+              {{ st }} ({{ (log.line_user_id[:6] ~ '...') if log.line_user_id else '-' }})
             {% endif %}
           {% endif %}
         </td>
-        <td data-label="ผู้พิมพ์">
+
+        <!-- ผู้ใช้งาน/ผู้พิมพ์: ชื่อใน LINE ถ้าดึงได้, ไม่งั้นย่อ userId -->
+        <td data-label="ผู้ใช้งาน/ผู้พิมพ์">
           {{ log.actor_display_name or ((log.line_user_id[:6] ~ '...') if log.line_user_id else '-') }}
         </td>
+
         <td data-label="ข้อความค้นหา">{{ log.query_text or '-' }}</td>
         <td data-label="ผลลัพธ์">{{ log.matched if log.matched is not none else '-' }}</td>
         <td data-label="สิทธิ์">{{ 'อนุญาต' if log.allowed else 'ปฏิเสธ' }}</td>
@@ -79,6 +84,7 @@
     </tbody>
   </table>
 </div>
+
 
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
