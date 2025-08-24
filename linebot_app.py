@@ -1,7 +1,7 @@
 import base64, hmac, hashlib, json, requests, os
 from datetime import date
 from flask import Blueprint, request, current_app
-from models import Vehicle, LineUser, LineGroup
+from models import Vehicle, LineUser, LineGroup, AuditLog, db
 from utils import has_line_permission
 from flex_templates import to_flex_message
 
@@ -13,11 +13,22 @@ def _verify_signature(body: bytes, signature_header: str, channel_secret: str) -
     return hmac.compare_digest(expected, signature_header)
 
 def _get_max_age_days() -> int:
-    # อ่านจาก config หรือ ENV (fallback 35)
     try:
         return int(current_app.config.get("LINE_MAX_AGE_DAYS", os.getenv("LINE_MAX_AGE_DAYS", "35")))
     except Exception:
         return 35
+
+def _write_log(source_type, user_id, group_id, text, matched=None, allowed=True):
+    try:
+        log = AuditLog(
+            source_type=source_type, line_user_id=user_id, line_group_id=group_id,
+            query_text=(text or "")[:255], matched=matched, allowed=allowed
+        )
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception("audit log error")
 
 @line_bp.route("/webhook", methods=["POST"])
 def webhook():
@@ -35,7 +46,7 @@ def webhook():
     events = payload.get("events", [])
 
     for ev in events:
-        if ev.get("type") != "message": 
+        if ev.get("type") != "message":
             continue
         if ev["message"].get("type") != "text":
             continue
@@ -48,7 +59,7 @@ def webhook():
         text = (ev["message"].get("text") or "").strip()
         lower = text.lower()
 
-        # ---------- คำสั่งสาธารณะ (ไม่ตรวจสิทธิ์) ----------
+        # ---------- คำสั่งสาธารณะ (ไม่ลง log การค้นหา) ----------
         if lower == "/userid":
             if user_id:
                 rec = LineUser.query.filter_by(line_user_id=user_id).first()
@@ -68,10 +79,11 @@ def webhook():
                 msg = "คำสั่งนี้ใช้ได้ในกลุ่ม/ห้องเท่านั้น — เชิญบอทเข้ากลุ่มแล้วพิมพ์ /groupid อีกครั้ง"
             _reply(access_token, ev["replyToken"], [{"type": "text", "text": msg}])
             continue
-        # -----------------------------------------------------
+        # ---------------------------------------------------------
 
-        # ตรวจสิทธิ์หลังจากเช็คคำสั่งสาธารณะแล้วเท่านั้น
+        # ตรวจสิทธิ์: ถ้าไม่ผ่านให้ log ไว้ด้วย
         if not has_line_permission(user_id, group_id):
+            _write_log(stype, user_id, group_id, text, matched=None, allowed=False)
             _reply(access_token, ev["replyToken"], [{"type": "text", "text": "คุณไม่มีสิทธิ์ใช้งานระบบนี้ กรุณาติดต่อผู้ดูแล"}])
             continue
 
@@ -84,7 +96,7 @@ def webhook():
             .all()
         )
 
-        # กรองตามอายุข้อมูล (อ่านค่าจาก ENV/config)
+        # กรองอายุข้อมูล
         max_age = _get_max_age_days()
         today = date.today()
         fresh = []
@@ -95,13 +107,14 @@ def webhook():
             if (today - rd).days <= max_age:
                 fresh.append(v)
 
+        # ลง log พร้อมจำนวนผลลัพธ์ที่แสดง
+        _write_log(stype, user_id, group_id, text, matched=len(fresh), allowed=True)
+
         if not fresh:
-            _reply(access_token, ev["replyToken"], [
-                {"type": "text", "text": f"ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน {max_age} วันแล้ว"}
-            ])
+            _reply(access_token, ev["replyToken"], [{"type": "text", "text": f"ไม่พบข้อมูลทะเบียนที่ค้นหา หรือข้อมูลเกิน {max_age} วันแล้ว"}])
             continue
 
-        # >>> ส่งเฉพาะ Flex Message <<<
+        # ส่งเฉพาะ Flex Message
         flex = to_flex_message(fresh[:10])
         _reply(access_token, ev["replyToken"], [{
             "type": "flex",
