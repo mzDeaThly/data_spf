@@ -1,11 +1,106 @@
-
 {% extends 'base.html' %}
 {% block content %}
 <h1>แดชบอร์ด</h1>
+
+<!-- บัตรสรุปแบบเดิม -->
 <div class="grid">
-  <div class="card">จำนวนรถทั้งหมด: <strong>{{ counts.vehicles }}</strong></div>
-  <div class="card">ผู้ใช้ LINE: <strong>{{ counts.line_users }}</strong></div>
-  <div class="card">กลุ่ม LINE: <strong>{{ counts.line_groups }}</strong></div>
-  <div class="card">ผู้ดูแลระบบ: <strong>{{ counts.admins }}</strong></div>
+  <div class="card">จำนวนรถทั้งหมด: <b>{{ counts.vehicles }}</b></div>
+  <div class="card">ผู้ใช้ LINE: <b>{{ counts.line_users }}</b></div>
+  <div class="card">กลุ่ม LINE: <b>{{ counts.line_groups }}</b></div>
+  <div class="card">ผู้ดูแลระบบ: <b>{{ counts.admins }}</b></div>
 </div>
+
+<!-- พื้นที่กราฟ -->
+<div class="grid" style="margin-top:12px">
+  <div class="card">
+    <h3 style="margin-top:0">จำนวนรถตามยี่ห้อ (Top 8)</h3>
+    <canvas id="brandChart" height="160"></canvas>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">จำนวนรถที่บันทึก (12 เดือนล่าสุด)</h3>
+    <canvas id="monthChart" height="160"></canvas>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">สถานะสิทธิ์ผู้ใช้ LINE</h3>
+    <canvas id="userPermChart" height="160"></canvas>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">สถานะสิทธิ์กลุ่ม LINE</h3>
+    <canvas id="groupPermChart" height="160"></canvas>
+  </div>
+</div>
+
+<!-- รายการล่าสุด -->
+<div class="card" style="margin-top:12px">
+  <h3 style="margin-top:0">รายการล่าสุด</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>ทะเบียน</th><th>ยี่ห้อ</th><th>รุ่น</th><th>ผู้ใช้งาน</th><th>วันที่บันทึก</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for v in recent %}
+      <tr>
+        <td data-label="ID">{{ v.id }}</td>
+        <td data-label="ทะเบียน">{{ v.license_plate }}</td>
+        <td data-label="ยี่ห้อ">{{ v.brand or '-' }}</td>
+        <td data-label="รุ่น">{{ v.model or '-' }}</td>
+        <td data-label="ผู้ใช้งาน">{{ v.owner_name or '-' }}</td>
+        <td data-label="วันที่บันทึก">{{ v.recorded_date or '-' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Chart.js CDN (เบา ใช้งานทันที) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  // ข้อมูลจากฝั่งเซิร์ฟเวอร์
+  const brandLabels = {{ brand_labels|tojson }};
+  const brandValues = {{ brand_values|tojson }};
+  const monthLabels = {{ month_labels|tojson }};
+  const monthValues = {{ month_values|tojson }};
+
+  const usersActive = {{ users_active|tojson }};
+  const usersInactive = {{ users_inactive|tojson }};
+  const groupsActive = {{ groups_active|tojson }};
+  const groupsInactive = {{ groups_inactive|tojson }};
+
+  // สร้างกราฟ
+  const brandCtx = document.getElementById('brandChart').getContext('2d');
+  new Chart(brandCtx, {
+    type: 'bar',
+    data: { labels: brandLabels, datasets: [{ label: 'คัน', data: brandValues }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  const monthCtx = document.getElementById('monthChart').getContext('2d');
+  new Chart(monthCtx, {
+    type: 'line',
+    data: { labels: monthLabels, datasets: [{ label: 'คัน/เดือน', data: monthValues, tension: .25, fill: false }] },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  const userCtx = document.getElementById('userPermChart').getContext('2d');
+  new Chart(userCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['เปิดใช้งาน', 'ปิดใช้งาน'],
+      datasets: [{ data: [usersActive, usersInactive] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+
+  const groupCtx = document.getElementById('groupPermChart').getContext('2d');
+  new Chart(groupCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['เปิดใช้งาน', 'ปิดใช้งาน'],
+      datasets: [{ data: [groupsActive, groupsInactive] }]
+    },
+    options: { responsive: true, maintainAspectRatio: false }
+  });
+</script>
 {% endblock %}
