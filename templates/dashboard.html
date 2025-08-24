@@ -2,6 +2,7 @@
 {% block content %}
 <h1>แดชบอร์ด</h1>
 
+<!-- การ์ดสรุป -->
 <div class="grid">
   <div class="card">จำนวนรถทั้งหมด: <b>{{ counts.vehicles }}</b></div>
   <div class="card">ผู้ใช้ LINE: <b>{{ counts.line_users }}</b></div>
@@ -9,67 +10,72 @@
   <div class="card">ผู้ดูแลระบบ: <b>{{ counts.admins }}</b></div>
 </div>
 
-<div class="grid" style="margin-top:12px">
-  <div class="card">
-    <h3 style="margin-top:0">จำนวนรถตามยี่ห้อ (Top 8)</h3>
-    <canvas id="brandChart" height="160"></canvas>
+<!-- กราฟทั้งหมดใช้กริดแบบ auto-fit + จำกัดความสูง -->
+<div class="charts-grid">
+  <div class="card chart">
+    <h3>จำนวนรถตามยี่ห้อ (Top 8)</h3>
+    <div class="chart-wrap"><canvas id="brandChart"></canvas></div>
   </div>
-  <div class="card">
-    <h3 style="margin-top:0">จำนวนรถที่บันทึก (12 เดือนล่าสุด)</h3>
-    <canvas id="monthChart" height="160"></canvas>
+
+  <div class="card chart">
+    <h3>จำนวนรถที่บันทึก (12 เดือนล่าสุด)</h3>
+    <div class="chart-wrap"><canvas id="monthChart"></canvas></div>
   </div>
-  <div class="card">
-    <h3 style="margin-top:0">สถานะสิทธิ์ผู้ใช้ LINE</h3>
-    <canvas id="userPermChart" height="160"></canvas>
+
+  <div class="card chart">
+    <h3>สถานะสิทธิ์ผู้ใช้ LINE</h3>
+    <div class="chart-wrap"><canvas id="userPermChart"></canvas></div>
   </div>
-  <div class="card">
-    <h3 style="margin-top:0">สถานะสิทธิ์กลุ่ม LINE</h3>
-    <canvas id="groupPermChart" height="160"></canvas>
+
+  <div class="card chart">
+    <h3>สถานะสิทธิ์กลุ่ม LINE</h3>
+    <div class="chart-wrap"><canvas id="groupPermChart"></canvas></div>
+  </div>
+
+  <div class="card chart" style="grid-column: auto;">
+    <h3>จำนวนการค้นหาต่อวัน (14 วัน)</h3>
+    <div class="chart-wrap"><canvas id="searchChart"></canvas></div>
   </div>
 </div>
 
-<div class="grid" style="margin-top:12px">
-  <div class="card">
-    <h3 style="margin-top:0">จำนวนการค้นหาต่อวัน (14 วัน)</h3>
-    <canvas id="searchChart" height="160"></canvas>
-  </div>
-  <div class="card" style="grid-column: span 3 / auto;">
-    <h3 style="margin-top:0">ประวัติการค้นหาล่าสุด</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>เวลา (UTC)</th>
-          <th>แหล่งที่มา</th>
-          <th>ผู้ใช้งาน</th>
-          <th>ข้อความค้นหา</th>
-          <th>ผลลัพธ์</th>
-          <th>สิทธิ์</th>
-        </tr>
-      </thead>
-      <tbody>
-      {% for log in recent_logs %}
-        <tr>
-          <td data-label="เวลา">{{ log.when }}</td>
-          <td data-label="แหล่งที่มา">{{ log.source_type or '-' }}</td>
-          <td data-label="ผู้ใช้งาน">
-            {% if log.source_type == 'group' %}
-              {{ log.line_group_id or '-' }}
-            {% else %}
-              {{ log.line_user_id or '-' }}
-            {% endif %}
-          </td>
-          <td data-label="ข้อความค้นหา">{{ log.query_text or '-' }}</td>
-          <td data-label="ผลลัพธ์">{{ log.matched if log.matched is not none else '-' }}</td>
-          <td data-label="สิทธิ์">{{ 'อนุญาต' if log.allowed else 'ปฏิเสธ' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
+<!-- ตาราง Log จำกัดความสูงให้เลื่อนภายใน -->
+<div class="card table-scroll">
+  <h3 style="margin-top:0">ประวัติการค้นหาล่าสุด</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>เวลา (UTC)</th>
+        <th>แหล่งที่มา</th>
+        <th>ผู้ใช้งาน</th>
+        <th>ข้อความค้นหา</th>
+        <th>ผลลัพธ์</th>
+        <th>สิทธิ์</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for log in recent_logs %}
+      <tr>
+        <td data-label="เวลา">{{ log.when }}</td>
+        <td data-label="แหล่งที่มา">{{ log.source_type or '-' }}</td>
+        <td data-label="ผู้ใช้งาน">
+          {% if log.source_type == 'group' %}
+            {{ log.line_group_id or '-' }}
+          {% else %}
+            {{ log.line_user_id or '-' }}
+          {% endif %}
+        </td>
+        <td data-label="ข้อความค้นหา">{{ log.query_text or '-' }}</td>
+        <td data-label="ผลลัพธ์">{{ log.matched if log.matched is not none else '-' }}</td>
+        <td data-label="สิทธิ์">{{ 'อนุญาต' if log.allowed else 'ปฏิเสธ' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  // ข้อมูลจากฝั่งเซิร์ฟเวอร์
   const brandLabels = {{ brand_labels|tojson }};
   const brandValues = {{ brand_values|tojson }};
   const monthLabels = {{ month_labels|tojson }};
@@ -81,30 +87,37 @@
   const dayLabels = {{ day_labels|tojson }};
   const dayValues = {{ day_values|tojson }};
 
+  // ตั้งค่าร่วม: ให้กราฟยืดตาม .chart-wrap สูงไม่เกินที่กำหนด
+  const opt = { responsive:true, maintainAspectRatio:false };
+
   new Chart(document.getElementById('brandChart'), {
     type: 'bar',
     data: { labels: brandLabels, datasets: [{ label: 'คัน', data: brandValues }] },
-    options: { responsive:true, maintainAspectRatio:false }
+    options: opt
   });
+
   new Chart(document.getElementById('monthChart'), {
     type: 'line',
     data: { labels: monthLabels, datasets: [{ label: 'คัน/เดือน', data: monthValues, tension:.25 }] },
-    options: { responsive:true, maintainAspectRatio:false }
+    options: opt
   });
+
   new Chart(document.getElementById('userPermChart'), {
     type: 'doughnut',
     data: { labels: ['เปิดใช้งาน','ปิดใช้งาน'], datasets: [{ data: [usersActive, usersInactive] }] },
-    options: { responsive:true, maintainAspectRatio:false }
+    options: opt
   });
+
   new Chart(document.getElementById('groupPermChart'), {
     type: 'doughnut',
     data: { labels: ['เปิดใช้งาน','ปิดใช้งาน'], datasets: [{ data: [groupsActive, groupsInactive] }] },
-    options: { responsive:true, maintainAspectRatio:false }
+    options: opt
   });
+
   new Chart(document.getElementById('searchChart'), {
     type: 'line',
     data: { labels: dayLabels, datasets: [{ label: 'ครั้ง/วัน', data: dayValues, tension:.25 }] },
-    options: { responsive:true, maintainAspectRatio:false }
+    options: opt
   });
 </script>
 {% endblock %}
