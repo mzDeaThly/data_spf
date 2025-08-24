@@ -2,7 +2,6 @@
 {% block content %}
 <h1>แดชบอร์ด</h1>
 
-<!-- บัตรสรุปแบบเดิม -->
 <div class="grid">
   <div class="card">จำนวนรถทั้งหมด: <b>{{ counts.vehicles }}</b></div>
   <div class="card">ผู้ใช้ LINE: <b>{{ counts.line_users }}</b></div>
@@ -10,7 +9,6 @@
   <div class="card">ผู้ดูแลระบบ: <b>{{ counts.admins }}</b></div>
 </div>
 
-<!-- พื้นที่กราฟ -->
 <div class="grid" style="margin-top:12px">
   <div class="card">
     <h3 style="margin-top:0">จำนวนรถตามยี่ห้อ (Top 8)</h3>
@@ -30,77 +28,83 @@
   </div>
 </div>
 
-<!-- รายการล่าสุด -->
-<div class="card" style="margin-top:12px">
-  <h3 style="margin-top:0">รายการล่าสุด</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th><th>ทะเบียน</th><th>ยี่ห้อ</th><th>รุ่น</th><th>ผู้ใช้งาน</th><th>วันที่บันทึก</th>
-      </tr>
-    </thead>
-    <tbody>
-    {% for v in recent %}
-      <tr>
-        <td data-label="ID">{{ v.id }}</td>
-        <td data-label="ทะเบียน">{{ v.license_plate }}</td>
-        <td data-label="ยี่ห้อ">{{ v.brand or '-' }}</td>
-        <td data-label="รุ่น">{{ v.model or '-' }}</td>
-        <td data-label="ผู้ใช้งาน">{{ v.owner_name or '-' }}</td>
-        <td data-label="วันที่บันทึก">{{ v.recorded_date or '-' }}</td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
+<div class="grid" style="margin-top:12px">
+  <div class="card">
+    <h3 style="margin-top:0">จำนวนการค้นหาต่อวัน (14 วัน)</h3>
+    <canvas id="searchChart" height="160"></canvas>
+  </div>
+  <div class="card" style="grid-column: span 3 / auto;">
+    <h3 style="margin-top:0">ประวัติการค้นหาล่าสุด</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>เวลา (UTC)</th>
+          <th>แหล่งที่มา</th>
+          <th>ผู้ใช้งาน</th>
+          <th>ข้อความค้นหา</th>
+          <th>ผลลัพธ์</th>
+          <th>สิทธิ์</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for log in recent_logs %}
+        <tr>
+          <td data-label="เวลา">{{ log.when }}</td>
+          <td data-label="แหล่งที่มา">{{ log.source_type or '-' }}</td>
+          <td data-label="ผู้ใช้งาน">
+            {% if log.source_type == 'group' %}
+              {{ log.line_group_id or '-' }}
+            {% else %}
+              {{ log.line_user_id or '-' }}
+            {% endif %}
+          </td>
+          <td data-label="ข้อความค้นหา">{{ log.query_text or '-' }}</td>
+          <td data-label="ผลลัพธ์">{{ log.matched if log.matched is not none else '-' }}</td>
+          <td data-label="สิทธิ์">{{ 'อนุญาต' if log.allowed else 'ปฏิเสธ' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
 </div>
 
-<!-- Chart.js CDN (เบา ใช้งานทันที) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-  // ข้อมูลจากฝั่งเซิร์ฟเวอร์
   const brandLabels = {{ brand_labels|tojson }};
   const brandValues = {{ brand_values|tojson }};
   const monthLabels = {{ month_labels|tojson }};
   const monthValues = {{ month_values|tojson }};
-
   const usersActive = {{ users_active|tojson }};
   const usersInactive = {{ users_inactive|tojson }};
   const groupsActive = {{ groups_active|tojson }};
   const groupsInactive = {{ groups_inactive|tojson }};
+  const dayLabels = {{ day_labels|tojson }};
+  const dayValues = {{ day_values|tojson }};
 
-  // สร้างกราฟ
-  const brandCtx = document.getElementById('brandChart').getContext('2d');
-  new Chart(brandCtx, {
+  new Chart(document.getElementById('brandChart'), {
     type: 'bar',
     data: { labels: brandLabels, datasets: [{ label: 'คัน', data: brandValues }] },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: { responsive:true, maintainAspectRatio:false }
   });
-
-  const monthCtx = document.getElementById('monthChart').getContext('2d');
-  new Chart(monthCtx, {
+  new Chart(document.getElementById('monthChart'), {
     type: 'line',
-    data: { labels: monthLabels, datasets: [{ label: 'คัน/เดือน', data: monthValues, tension: .25, fill: false }] },
-    options: { responsive: true, maintainAspectRatio: false }
+    data: { labels: monthLabels, datasets: [{ label: 'คัน/เดือน', data: monthValues, tension:.25 }] },
+    options: { responsive:true, maintainAspectRatio:false }
   });
-
-  const userCtx = document.getElementById('userPermChart').getContext('2d');
-  new Chart(userCtx, {
+  new Chart(document.getElementById('userPermChart'), {
     type: 'doughnut',
-    data: {
-      labels: ['เปิดใช้งาน', 'ปิดใช้งาน'],
-      datasets: [{ data: [usersActive, usersInactive] }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
+    data: { labels: ['เปิดใช้งาน','ปิดใช้งาน'], datasets: [{ data: [usersActive, usersInactive] }] },
+    options: { responsive:true, maintainAspectRatio:false }
   });
-
-  const groupCtx = document.getElementById('groupPermChart').getContext('2d');
-  new Chart(groupCtx, {
+  new Chart(document.getElementById('groupPermChart'), {
     type: 'doughnut',
-    data: {
-      labels: ['เปิดใช้งาน', 'ปิดใช้งาน'],
-      datasets: [{ data: [groupsActive, groupsInactive] }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
+    data: { labels: ['เปิดใช้งาน','ปิดใช้งาน'], datasets: [{ data: [groupsActive, groupsInactive] }] },
+    options: { responsive:true, maintainAspectRatio:false }
+  });
+  new Chart(document.getElementById('searchChart'), {
+    type: 'line',
+    data: { labels: dayLabels, datasets: [{ label: 'ครั้ง/วัน', data: dayValues, tension:.25 }] },
+    options: { responsive:true, maintainAspectRatio:false }
   });
 </script>
 {% endblock %}
